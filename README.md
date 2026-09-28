@@ -59,12 +59,12 @@ court_management/
 - MySQL database support
 
 ## Author
-Korade Nisha Dilip
+Korade Nisha Dilip<br><br><br>
 
 
 
 
-Files Description <br><br>
+Files description <br>
 1. app.py (backend)
 
 This is the main Python file that runs the whole application.
