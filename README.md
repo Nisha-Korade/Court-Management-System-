@@ -2,7 +2,7 @@
 
 A web application that digitalizes court case handling by replacing manual paper records with a centralized database.
 
-Developed for S.Y.B.Sc (Computer Science), Samarth College of Computer Science, Belhe (Savitribai Phule Pune University, 2025-2026).
+Developed for T.Y.B.Sc (Computer Science), Samarth College of Computer Science, Belhe (Savitribai Phule Pune University, 2025-2026).
 
 ## Features
 - Secure admin login and logout
