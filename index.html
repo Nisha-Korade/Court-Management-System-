@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Court Management System</title>
+<style>
+:root{--ink:#1c2233;--navy:#1f3a5f;--bg:#f3f1ec;--card:#fff;--line:#d9d5cb;--gold:#b48a3c;--red:#a4372f}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 Georgia,'Times New Roman',serif;color:var(--ink);background:var(--bg)}
+button,input,select,textarea{font:inherit}
+#login{max-width:340px;margin:12vh auto;background:var(--card);padding:28px;border:1px solid var(--line);border-top:5px solid var(--navy)}
+#login h1{margin:0 0 4px;font-size:22px}
+label{display:block;margin:10px 0 3px;font-size:13px}
+input,select,textarea{width:100%;padding:8px;border:1px solid var(--line);background:#fff}
+button{cursor:pointer;border:0;padding:8px 14px;background:var(--navy);color:#fff}
+button.ghost{background:none;color:var(--navy);border:1px solid var(--navy)}
+button.del{background:var(--red)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+#app{display:none;min-height:100vh;grid-template-columns:210px 1fr}
+nav{background:var(--navy);color:#fff;padding:18px 0}
+nav h2{font-size:16px;margin:0 18px 14px}
+nav a{display:block;padding:9px 18px;color:#dfe6f0;cursor:pointer;border-left:4px solid transparent}
+nav a.on{background:#17304f;border-left-color:var(--gold);color:#fff}
+main{padding:22px;overflow:auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--line);padding:12px}
+.stat b{display:block;font-size:26px;color:var(--navy)}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.bar h1{margin:0;font-size:22px}
+.bar input{max-width:220px}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:#ebe7dd;font-size:13px}
+td.act{display:flex;gap:6px}
+td.act button{padding:4px 10px;font-size:13px}
+.empty{padding:24px;color:#666}
+dialog{border:1px solid var(--line);padding:22px;width:min(420px,92vw)}
+dialog::backdrop{background:rgba(20,25,40,.5)}
+.err{color:var(--red);font-size:13px;min-height:18px;margin-top:8px}
+.btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+@media(max-width:700px){#app{grid-template-columns:1fr}nav{display:flex;overflow-x:auto;padding:0}nav h2{display:none}nav a{white-space:nowrap;border-left:0;border-bottom:4px solid transparent}nav a.on{border-bottom-color:var(--gold)}}
+</style>
+</head>
+<body>
+<form id="login">
+  <h1>Court Management System</h1>
+  <div style="color:#666;font-size:13px">Sign in to manage cases</div>
+  <label for="u">Username</label><input id="u" value="admin" autocomplete="username">
+  <label for="p">Password</label><input id="p" type="password" autocomplete="current-password">
+  <div class="err" id="lerr"></div>
+  <button style="width:100%;margin-top:6px">Sign in</button>
+</form>
+
+<div id="app">
+  <nav id="nav"></nav>
+  <main>
+    <div id="stats" class="stats"></div>
+    <div class="bar"><h1 id="title"></h1>
+      <div style="display:flex;gap:8px"><input id="q" placeholder="Search this list" aria-label="Search"><button id="add">Add record</button><button class="ghost" id="out">Sign out</button></div>
+    </div>
+    <div class="wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table><div id="empty" class="empty" hidden>No records yet. Use Add record to create one.</div></div>
+  </main>
+</div>
+
+<dialog id="dlg"><form id="form" method="dialog"><h2 id="dt" style="margin:0"></h2><div id="fields"></div><div class="err" id="ferr"></div>
+<div class="btns"><button type="button" class="ghost" id="cancel">Cancel</button><button>Save</button></div></form></dialog>
+
+<script>
+// Field spec: "Label" | ["Label","fkTable"] | ["Label","@opt1,opt2"]
+const M={
+ cases:{t:"Cases",pk:"case_id",f:{case_desp:"Description",status:["Status","@Pending,Hearing,Closed"],filing_date:"Filing date",c_id:["Client","client"],a_id:["Attorney","attorney"],co_id:["Court","court"]}},
+ hearing:{t:"Hearings",pk:"h_id",f:{case_id:["Case","cases"],j_id:["Judge","judge"],hearing_date:"Hearing date",hearing_type:["Type","@Preliminary,Main,Review,Final"],notes:"Notes"}},
+ client:{t:"Clients",pk:"c_id",f:{c_fname:"First name",c_lname:"Last name",c_address:"Address",c_sex:["Sex","@M,F,O"]}},
+ attorney:{t:"Attorneys",pk:"a_id",f:{a_name:"Name",a_email:"Email",a_address:"Address"}},
+ judge:{t:"Judges",pk:"j_id",f:{j_name:"Name",j_phone:"Phone",j_address:"Address",co_id:["Court","court"]}},
+ court:{t:"Courts",pk:"co_id",f:{co_name:"Name",co_address:"Address",co_city:"City",co_zipcode:"Zip code"}},
+ jury:{t:"Jury verdicts",pk:"jury_id",f:{case_id:["Case","cases"],no_of_jurors:"Jurors",verdict:["Verdict","@Guilty,Not Guilty"]}}
+};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let cur="cases",cache={},editing=null;
+
+async function api(path,method="GET",body){
+  const r=await fetch("/api/"+path,{method,headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401&&path!=="login"){showLogin();throw new Error("auth")}
+  if(!r.ok)throw new Error(d.error||"Something went wrong");
+  return d;
+}
+// Human label for a row of a table (used to show names instead of ids)
+function label(tbl,id){
+  const row=(cache[tbl]||[]).find(r=>r[M[tbl].pk]==id);
+  if(!row)return id??"";
+  if(tbl==="cases")return "#"+row.case_id+" "+row.case_desp;
+  if(tbl==="client")return row.c_fname+" "+(row.c_lname||"");
+  return row[Object.keys(M[tbl].f)[0]];
+}
+function showLogin(){$("app").style.display="none";$("login").style.display="block"}
+async function showApp(){
+  $("login").style.display="none";$("app").style.display="grid";
+  $("nav").innerHTML="<h2>Court CMS</h2>"+Object.keys(M).map(k=>`<a tabindex="0" data-k="${k}">${M[k].t}</a>`).join("");
+  await load();
+}
+async function load(){
+  for(const k of Object.keys(M))cache[k]=await api(k);
+  const s=await api("stats");
+  $("stats").innerHTML=[["Total cases",s.cases],["Open cases",s.pending],["Upcoming hearings",s.hearings],["Judges",s.judges]].map(([a,b])=>`<div class="stat"><b>${b}</b>${a}</div>`).join("");
+  render();
+}
+function render(){
+  const m=M[cur],cols=Object.keys(m.f);
+  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.k===cur));
+  $("title").textContent=m.t;
+  $("thead").innerHTML="<tr><th>ID</th>"+cols.map(c=>`<th>${esc(Array.isArray(m.f[c])?m.f[c][0]:m.f[c])}</th>`).join("")+"<th></th></tr>";
+  const q=$("q").value.toLowerCase();
+  const rows=(cache[cur]||[]).filter(r=>!q||JSON.stringify(r).toLowerCase().includes(q));
+  $("empty").hidden=rows.length>0;
+  $("tbody").innerHTML=rows.map(r=>"<tr><td>"+r[m.pk]+"</td>"+cols.map(c=>{
+    const f=m.f[c];const v=Array.isArray(f)&&f[1][0]!=="@"?label(f[1],r[c]):r[c];
+    return "<td>"+esc(v)+"</td>"}).join("")+
+    `<td class="act"><button class="ghost" data-e="${r[m.pk]}">Edit</button><button class="del" data-d="${r[m.pk]}">Delete</button></td></tr>`).join("");
+}
+function openForm(id){
+  const m=M[cur];editing=id;$("ferr").textContent="";
+  const row=id?cache[cur].find(r=>r[m.pk]==id):{};
+  $("dt").textContent=(id?"Edit ":"Add ")+m.t.toLowerCase();
+  $("fields").innerHTML=Object.entries(m.f).map(([c,f])=>{
+    const lab=Array.isArray(f)?f[0]:f,v=row[c]??"";let input;
+    if(Array.isArray(f)){
+      const opts=f[1][0]==="@"?f[1].slice(1).split(",").map(o=>[o,o]):(cache[f[1]]||[]).map(r=>[r[M[f[1]].pk],label(f[1],r[M[f[1]].pk])]);
+      input=`<select id="f_${c}"><option value="">Select</option>${opts.map(([a,b])=>`<option value="${esc(a)}"${a==v?" selected":""}>${esc(b)}</option>`).join("")}</select>`;
+    }else input=`<input id="f_${c}" type="${c.includes("date")?"date":c==="no_of_jurors"?"number":"text"}" value="${esc(v)}">`;
+    return `<label for="f_${c}">${esc(lab)}</label>${input}`}).join("");
+  $("dlg").showModal();
+}
+$("login").onsubmit=async e=>{e.preventDefault();
+  try{await api("login","POST",{username:$("u").value,password:$("p").value});showApp()}
+  catch(x){$("lerr").textContent=x.message}};
+$("out").onclick=async()=>{await api("logout","POST");showLogin()};
+$("nav").onclick=e=>{if(e.target.dataset.k){cur=e.target.dataset.k;$("q").value="";render()}};
+$("nav").onkeydown=e=>{if(e.key==="Enter"&&e.target.dataset.k)e.target.click()};
+$("q").oninput=render;
+$("add").onclick=()=>openForm(null);
+$("cancel").onclick=()=>$("dlg").close();
+$("tbody").onclick=async e=>{
+  if(e.target.dataset.e)openForm(e.target.dataset.e);
+  if(e.target.dataset.d&&confirm("Delete this record?")){
+    try{await api(cur+"/"+e.target.dataset.d,"DELETE");await load()}catch(x){alert(x.message)}}};
+$("form").onsubmit=async e=>{e.preventDefault();
+  const body={};Object.keys(M[cur].f).forEach(c=>body[c]=$("f_"+c).value);
+  try{await api(editing?`${cur}/${editing}`:cur,editing?"PUT":"POST",body);$("dlg").close();await load()}
+  catch(x){$("ferr").textContent=x.message}};
+api("me").then(d=>d.user?showApp():showLogin()).catch(showLogin);
+</script>
+</body>
+</html>
