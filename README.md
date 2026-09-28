@@ -60,3 +60,39 @@ court_management/
 
 ## Author
 Korade Nisha Dilip
+
+
+
+
+Files Description <br><br>
+1. app.py (backend)
+
+This is the main Python file that runs the whole application.
+It uses Flask to start the web server on port 5000.
+It creates the database and the seven tables (court, judge, attorney, client, cases, hearing, jury) on the first run and adds sample data.
+It handles login and logout, and blocks API access for users who are not logged in.
+It provides the API routes that add, list, edit and delete records for every table.
+It provides the dashboard statistics (total cases, open cases, upcoming hearings, judges).
+It serves the frontend page (index.html) when you open the website.
+It uses safe SQL queries with ? parameters and a whitelist of table names to prevent SQL injection.
+
+2. court.db (database)
+
+This is the SQLite database file where all your data is stored permanently.
+You do not create it by hand. app.py creates it automatically the first time you run the project.
+It holds all courts, judges, attorneys, clients, cases, hearings and jury verdicts.
+Your data stays in it after you close the app.
+To reset the project to the sample data, stop the app, delete this file and run python app.py again.
+Do not upload it to GitHub. Add it to .gitignore.
+
+3. requirements.txt
+
+This file lists the Python libraries the project needs.
+It contains one line: Flask>=3.0.
+Anyone who downloads your project installs everything with one command: pip install -r requirements.txt.
+SQLite (sqlite3) is already built into Python, so it does not need to be listed.
+
+Other files in the project
+
+static/index.html: the frontend. It contains the login page, dashboard, tables, forms and search, and it calls the API in app.py.
+README.md: the description of the project and the steps to run it, shown on the GitHub page.
